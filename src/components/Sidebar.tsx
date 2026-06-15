@@ -4,6 +4,7 @@ import {
   LayoutDashboard,
   Users,
   CheckSquare,
+  CalendarDays,
   BarChart3,
   Download,
   Music2,
@@ -25,6 +26,11 @@ const menuItems = [
     path: '/checkin',
     label: '签到管理',
     icon: CheckSquare,
+  },
+  {
+    path: '/schedule',
+    label: '班级排课',
+    icon: CalendarDays,
   },
   {
     path: '/statistics',

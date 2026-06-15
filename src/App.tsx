@@ -7,6 +7,7 @@ import StudentDetail from "@/pages/Students/StudentDetail";
 import Checkin from "@/pages/Checkin";
 import Statistics from "@/pages/Statistics";
 import ExportPage from "@/pages/Export";
+import SchedulePage from "@/pages/Schedule";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
           <Route path="/students" element={<Students />} />
           <Route path="/students/:id" element={<StudentDetail />} />
           <Route path="/checkin" element={<Checkin />} />
+          <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/statistics" element={<Statistics />} />
           <Route path="/export" element={<ExportPage />} />
         </Route>

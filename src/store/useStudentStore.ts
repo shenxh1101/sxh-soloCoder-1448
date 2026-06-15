@@ -2,22 +2,31 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Student, StudentWithReminder, ReminderLevel } from '@/types';
-import { getToday, daysBetween, isExpired } from '@/utils/date';
+import { getToday, daysBetween, isExpired, addMonths, formatDate } from '@/utils/date';
+import { useEnrollmentStore } from './useEnrollmentStore';
 
 interface StudentState {
   students: Student[];
   addStudent: (student: Omit<Student, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'remainingLessons'> & {
     totalLessons: number;
     giftedLessons: number;
-  }) => void;
+  }) => string;
   updateStudent: (id: string, data: Partial<Student>) => void;
   deleteStudent: (id: string) => void;
   getStudentById: (id: string) => Student | undefined;
   deductLesson: (studentId: string) => boolean;
-  addLessons: (studentId: string, amount: number, paidAmount: number, gifted: number) => void;
+  addLessons: (studentId: string, amount: number, paidAmount: number, gifted: number, note?: string) => void;
   getStudentsWithReminders: () => StudentWithReminder[];
   getStudentsByClass: (classId: string) => Student[];
   getActiveStudents: () => Student[];
+  getMonthlyStats: (studentId: string, month: string) => {
+    totalLessons: number;
+    usedLessons: number;
+    remainingLessons: number;
+    checkinCount: number;
+    leaveCount: number;
+    makeupCount: number;
+  };
 }
 
 const generateMockStudents = (): Student[] => {
@@ -162,11 +171,12 @@ export const useStudentStore = create<StudentState>()(
       addStudent: (studentData) => {
         const now = new Date().toISOString();
         const totalLessons = studentData.totalLessons + studentData.giftedLessons;
+        const newId = `student-${Date.now()}`;
         const newStudent: Student = {
           ...studentData,
           totalLessons,
           remainingLessons: totalLessons,
-          id: `student-${Date.now()}`,
+          id: newId,
           status: 'active',
           createdAt: now,
           updatedAt: now,
@@ -174,6 +184,24 @@ export const useStudentStore = create<StudentState>()(
         set((state) => ({
           students: [...state.students, newStudent],
         }));
+
+        useEnrollmentStore.getState().addRecord({
+          studentId: newId,
+          type: 'enroll',
+          paidAmount: studentData.paidAmount,
+          addedLessons: studentData.totalLessons,
+          giftedLessons: studentData.giftedLessons,
+          totalLessonsBefore: 0,
+          totalLessonsAfter: totalLessons,
+          remainingLessonsBefore: 0,
+          remainingLessonsAfter: totalLessons,
+          expireDateBefore: '',
+          expireDateAfter: studentData.expireDate,
+          date: studentData.enrollDate,
+          note: '初始报名',
+        });
+
+        return newId;
       },
 
       updateStudent: (id, data) =>
@@ -209,21 +237,49 @@ export const useStudentStore = create<StudentState>()(
         return true;
       },
 
-      addLessons: (studentId, amount, paidAmount, gifted) => {
+      addLessons: (studentId, amount, paidAmount, gifted, note = '') => {
+        const student = get().students.find((s) => s.id === studentId);
+        if (!student) return;
+
+        const totalBefore = student.totalLessons;
+        const remainingBefore = student.remainingLessons;
+        const expireBefore = student.expireDate;
+        const totalAfter = totalBefore + amount + gifted;
+        const remainingAfter = remainingBefore + amount + gifted;
+        const newExpire = formatDate(addMonths(new Date(), 6));
+
         set((state) => ({
           students: state.students.map((s) =>
             s.id === studentId
               ? {
                   ...s,
-                  totalLessons: s.totalLessons + amount + gifted,
-                  remainingLessons: s.remainingLessons + amount + gifted,
+                  totalLessons: totalAfter,
+                  remainingLessons: remainingAfter,
                   paidAmount: s.paidAmount + paidAmount,
                   giftedLessons: s.giftedLessons + gifted,
+                  expireDate: newExpire,
+                  status: 'active',
                   updatedAt: new Date().toISOString(),
                 }
               : s
           ),
         }));
+
+        useEnrollmentStore.getState().addRecord({
+          studentId,
+          type: 'renew',
+          paidAmount,
+          addedLessons: amount,
+          giftedLessons: gifted,
+          totalLessonsBefore: totalBefore,
+          totalLessonsAfter: totalAfter,
+          remainingLessonsBefore: remainingBefore,
+          remainingLessonsAfter: remainingAfter,
+          expireDateBefore: expireBefore,
+          expireDateAfter: newExpire,
+          date: getToday(),
+          note,
+        });
       },
 
       getStudentsWithReminders: () => {
@@ -271,9 +327,82 @@ export const useStudentStore = create<StudentState>()(
 
       getActiveStudents: () =>
         get().students.filter((s) => s.status === 'active'),
+
+      getMonthlyStats: (studentId, month) => {
+        const student = get().students.find((s) => s.id === studentId);
+        if (!student) {
+          return {
+            totalLessons: 0,
+            usedLessons: 0,
+            remainingLessons: 0,
+            checkinCount: 0,
+            leaveCount: 0,
+            makeupCount: 0,
+          };
+        }
+
+        const { checkins } = useCheckinStore.getState();
+        const enrollRecords = useEnrollmentStore.getState().records.filter(
+          (r) => r.studentId === studentId
+        );
+
+        const [year, monthNum] = month.split('-').map(Number);
+        const monthStart = `${year}-${String(monthNum).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const monthEnd = `${year}-${String(monthNum).padStart(2, '0')}-${lastDay}`;
+
+        const monthCheckins = checkins.filter(
+          (c) =>
+            c.studentId === studentId &&
+            c.date >= monthStart &&
+            c.date <= monthEnd
+        );
+
+        const checkinCount = monthCheckins.filter(
+          (c) => c.type === 'normal' || c.type === 'makeup'
+        ).length;
+        const leaveCount = monthCheckins.filter((c) => c.type === 'leave').length;
+        const makeupCount = monthCheckins.filter((c) => c.type === 'makeup').length;
+
+        const beforeMonthRecords = enrollRecords.filter((r) => r.date < monthStart);
+        let totalAtMonthStart = 0;
+        let remainingAtMonthStart = 0;
+
+        if (beforeMonthRecords.length > 0) {
+          const lastRecord = beforeMonthRecords.sort((a, b) => b.date.localeCompare(a.date))[0];
+          totalAtMonthStart = lastRecord.totalLessonsAfter;
+          remainingAtMonthStart = lastRecord.remainingLessonsAfter;
+        }
+
+        const monthEnrollRecords = enrollRecords.filter(
+          (r) => r.date >= monthStart && r.date <= monthEnd
+        );
+
+        let totalLessons = totalAtMonthStart;
+        let remainingLessons = remainingAtMonthStart;
+
+        monthEnrollRecords.forEach((r) => {
+          totalLessons += r.addedLessons + r.giftedLessons;
+          remainingLessons += r.addedLessons + r.giftedLessons;
+        });
+
+        const usedLessons = checkinCount;
+        const remainingAtMonthEnd = remainingLessons - usedLessons;
+
+        return {
+          totalLessons,
+          usedLessons,
+          remainingLessons: Math.max(0, remainingAtMonthEnd),
+          checkinCount,
+          leaveCount,
+          makeupCount,
+        };
+      },
     }),
     {
       name: 'dance-studio-students',
     }
   )
 );
+
+import { useCheckinStore } from './useCheckinStore';

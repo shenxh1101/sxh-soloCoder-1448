@@ -10,10 +10,13 @@ import {
   CreditCard,
   Edit2,
   Plus,
+  History,
+  TrendingUp,
 } from 'lucide-react';
 import { useStudentStore } from '@/store/useStudentStore';
 import { useClassStore } from '@/store/useClassStore';
 import { useCheckinStore } from '@/store/useCheckinStore';
+import { useEnrollmentStore } from '@/store/useEnrollmentStore';
 import { isExpired, formatDate } from '@/utils/date';
 import { useState } from 'react';
 import StudentModal from './StudentModal';
@@ -24,16 +27,19 @@ export default function StudentDetail() {
   const { getStudentById, addLessons } = useStudentStore();
   const { getClassById } = useClassStore();
   const { getCheckinsByStudent } = useCheckinStore();
+  const { getRecordsByStudent } = useEnrollmentStore();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [showRechargeForm, setShowRechargeForm] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState(0);
   const [rechargeLessons, setRechargeLessons] = useState(0);
   const [rechargeGifted, setRechargeGifted] = useState(0);
+  const [activeTab, setActiveTab] = useState<'checkin' | 'enrollment'>('checkin');
 
   const student = id ? getStudentById(id) : undefined;
   const classInfo = student ? getClassById(student.classId) : undefined;
   const checkinRecords = student ? getCheckinsByStudent(student.id) : [];
+  const enrollmentRecords = student ? getRecordsByStudent(student.id) : [];
 
   if (!student) {
     return (
@@ -105,6 +111,16 @@ export default function StudentDetail() {
       default:
         return 'bg-gray-100 text-gray-600';
     }
+  };
+
+  const getEnrollmentTypeText = (type: string) => {
+    return type === 'enroll' ? '报名' : '续费';
+  };
+
+  const getEnrollmentTypeColor = (type: string) => {
+    return type === 'enroll'
+      ? 'bg-rose-100 text-rose-600'
+      : 'bg-emerald-100 text-emerald-600';
   };
 
   return (
@@ -180,47 +196,175 @@ export default function StudentDetail() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-gray-800">签到记录</h3>
-              <span className="text-sm text-gray-500">
-                共 {checkinRecords.length} 条记录
-              </span>
-            </div>
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-              {checkinRecords.length === 0 ? (
-                <div className="text-center py-8">
-                  <Calendar className="w-12 h-12 text-gray-200 mx-auto mb-2" />
-                  <p className="text-gray-400 text-sm">暂无签到记录</p>
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="flex border-b border-gray-100">
+              <button
+                onClick={() => setActiveTab('checkin')}
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                  activeTab === 'checkin'
+                    ? 'text-rose-600 border-b-2 border-rose-500 bg-rose-50/50'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  签到记录
+                  <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                    {checkinRecords.length}
+                  </span>
                 </div>
-              ) : (
-                checkinRecords.slice(0, 20).map((record) => (
-                  <div
-                    key={record.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
-                        <Calendar className="w-5 h-5 text-gray-400" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-800">
-                          {record.date}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {record.checkinTime}
-                        </p>
-                      </div>
+              </button>
+              <button
+                onClick={() => setActiveTab('enrollment')}
+                className={`flex-1 px-6 py-4 text-sm font-medium transition-colors ${
+                  activeTab === 'enrollment'
+                    ? 'text-rose-600 border-b-2 border-rose-500 bg-rose-50/50'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <History className="w-4 h-4" />
+                  续费历史
+                  <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full">
+                    {enrollmentRecords.length}
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            <div className="p-5">
+              {activeTab === 'checkin' && (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {checkinRecords.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Calendar className="w-12 h-12 text-gray-200 mx-auto mb-2" />
+                      <p className="text-gray-400 text-sm">暂无签到记录</p>
                     </div>
-                    <span
-                      className={`px-3 py-1 text-xs font-medium rounded-full ${getCheckinTypeColor(
-                        record.type
-                      )}`}
-                    >
-                      {getCheckinTypeText(record.type)}
-                    </span>
-                  </div>
-                ))
+                  ) : (
+                    checkinRecords.map((record) => (
+                      <div
+                        key={record.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-sm">
+                            <Calendar className="w-5 h-5 text-gray-400" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-800">
+                              {record.date}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {record.checkinTime}
+                              {record.note && ` · ${record.note}`}
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`px-3 py-1 text-xs font-medium rounded-full ${getCheckinTypeColor(
+                            record.type
+                          )}`}
+                        >
+                          {getCheckinTypeText(record.type)}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'enrollment' && (
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {enrollmentRecords.length === 0 ? (
+                    <div className="text-center py-8">
+                      <History className="w-12 h-12 text-gray-200 mx-auto mb-2" />
+                      <p className="text-gray-400 text-sm">暂无续费记录</p>
+                    </div>
+                  ) : (
+                    enrollmentRecords.map((record) => (
+                      <div
+                        key={record.id}
+                        className="p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                                record.type === 'enroll'
+                                  ? 'bg-rose-100'
+                                  : 'bg-emerald-100'
+                              }`}
+                            >
+                              <TrendingUp
+                                className={`w-5 h-5 ${
+                                  record.type === 'enroll'
+                                    ? 'text-rose-500'
+                                    : 'text-emerald-500'
+                                }`}
+                              />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-800">
+                                  {getEnrollmentTypeText(record.type)}
+                                </span>
+                                <span
+                                  className={`px-2 py-0.5 text-xs font-medium rounded-full ${getEnrollmentTypeColor(
+                                    record.type
+                                  )}`}
+                                >
+                                  {record.type === 'enroll' ? '报名' : '续费'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                {record.date}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold text-rose-600">
+                              ¥{record.paidAmount}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3 pt-3 border-t border-gray-200">
+                          <div>
+                            <p className="text-xs text-gray-500">增加课时</p>
+                            <p className="text-sm font-medium text-gray-700">
+                              +{record.addedLessons} 节
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">赠送课时</p>
+                            <p className="text-sm font-medium text-amber-600">
+                              +{record.giftedLessons} 节
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">剩余课时</p>
+                            <p className="text-sm font-medium text-emerald-600">
+                              {record.remainingLessonsAfter} 节
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-500">
+                              有效期：{record.expireDateBefore || '-'} → {record.expireDateAfter}
+                            </span>
+                          </div>
+                          {record.note && (
+                            <p className="text-xs text-gray-400 mt-2">
+                              备注：{record.note}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               )}
             </div>
           </div>

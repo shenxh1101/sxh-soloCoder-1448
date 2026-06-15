@@ -6,6 +6,14 @@ export interface ClassData {
   color: string;
 }
 
+export interface ClassSchedule {
+  id: string;
+  classId: string;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+}
+
 export interface Student {
   id: string;
   name: string;
@@ -32,16 +40,23 @@ export interface CheckinRecord {
   checkinTime: string;
   type: CheckinType;
   note: string;
+  makeupFromDate?: string;
 }
 
 export interface EnrollmentRecord {
   id: string;
   studentId: string;
+  type: 'enroll' | 'renew';
   paidAmount: number;
-  totalLessons: number;
+  addedLessons: number;
   giftedLessons: number;
-  enrollDate: string;
-  expireDate: string;
+  totalLessonsBefore: number;
+  totalLessonsAfter: number;
+  remainingLessonsBefore: number;
+  remainingLessonsAfter: number;
+  expireDateBefore: string;
+  expireDateAfter: string;
+  date: string;
   note: string;
 }
 
@@ -52,3 +67,16 @@ export interface StudentWithReminder extends Student {
   reminderReason: string[];
   daysUntilExpire: number;
 }
+
+export interface MonthlyStats {
+  studentId: string;
+  month: string;
+  totalLessons: number;
+  usedLessons: number;
+  remainingLessons: number;
+  checkinCount: number;
+  leaveCount: number;
+  makeupCount: number;
+}
+
+export type DayOfWeek = 0 | 1 | 2 | 3 | 4 | 5 | 6;

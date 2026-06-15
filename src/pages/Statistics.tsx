@@ -22,12 +22,14 @@ import {
 import { useClassStore } from '@/store/useClassStore';
 import { useStudentStore } from '@/store/useStudentStore';
 import { useCheckinStore } from '@/store/useCheckinStore';
+import { useScheduleStore } from '@/store/useScheduleStore';
 import { getToday, formatDate, daysBetween } from '@/utils/date';
 
 export default function Statistics() {
   const { classes } = useClassStore();
   const { getStudentsByClass, getActiveStudents } = useStudentStore();
   const { checkins } = useCheckinStore();
+  const { getClassDayCount } = useScheduleStore();
 
   const today = getToday();
   const thirtyDaysAgo = useMemo(() => {
@@ -55,8 +57,7 @@ export default function Statistics() {
           c.type === 'leave'
       ).length;
 
-      const totalDays = 30;
-      const classDays = Math.ceil(totalDays * 0.4);
+      const classDays = getClassDayCount(cls.id, thirtyDaysAgo, today);
       const expectedAttendance = students.length * classDays;
       const actualAttendance = classCheckins.length;
 
@@ -71,10 +72,11 @@ export default function Statistics() {
         students: students.length,
         checkins: actualAttendance,
         leaves: leaveCount,
+        classDays,
         attendanceRate,
       };
     });
-  }, [classes, checkins, getStudentsByClass, thirtyDaysAgo, today]);
+  }, [classes, checkins, getStudentsByClass, thirtyDaysAgo, today, getClassDayCount]);
 
   const dailyData = useMemo(() => {
     const data = [];
@@ -108,7 +110,7 @@ export default function Statistics() {
 
   const overallRate = useMemo(() => {
     const totalExpected = attendanceData.reduce(
-      (sum, d) => sum + d.students * 12,
+      (sum, d) => sum + d.students * d.classDays,
       0
     );
     const totalActual = attendanceData.reduce((sum, d) => sum + d.checkins, 0);
@@ -295,6 +297,9 @@ export default function Statistics() {
                   学员数
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  应上课天数
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   签到次数
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -321,6 +326,7 @@ export default function Statistics() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-gray-700">{data.students} 人</td>
+                  <td className="px-6 py-4 text-gray-700">{data.classDays} 天</td>
                   <td className="px-6 py-4 text-gray-700">{data.checkins} 次</td>
                   <td className="px-6 py-4 text-gray-700">{data.leaves} 次</td>
                   <td className="px-6 py-4">
