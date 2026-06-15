@@ -42,8 +42,10 @@ export default function ExportPage() {
     setTimeout(() => setExportStatus('idle'), 2000);
   };
 
+  const totalStartRemaining = exportData.reduce((sum, d) => sum + d.stats.startRemaining, 0);
+  const totalRenewAdded = exportData.reduce((sum, d) => sum + d.stats.renewAdded, 0);
   const totalUsedLessons = exportData.reduce((sum, d) => sum + d.stats.usedLessons, 0);
-  const totalRemainingLessons = exportData.reduce((sum, d) => sum + d.stats.remainingLessons, 0);
+  const totalEndRemaining = exportData.reduce((sum, d) => sum + d.stats.endRemaining, 0);
   const totalCheckins = exportData.reduce((sum, d) => sum + d.stats.checkinCount, 0);
 
   return (
@@ -108,21 +110,33 @@ export default function ExportPage() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">本月签到</span>
+                    <span className="text-gray-500">月初余额</span>
                     <span className="font-medium text-gray-800">
-                      {totalCheckins} 次
+                      {totalStartRemaining} 节
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">当月续费</span>
+                    <span className="font-medium text-blue-600">
+                      +{totalRenewAdded} 节
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-500">本月已上</span>
                     <span className="font-medium text-rose-600">
-                      {totalUsedLessons} 节
+                      -{totalUsedLessons} 节
+                    </span>
+                  </div>
+                  <div className="flex justify-between pt-2 border-t border-gray-100">
+                    <span className="text-gray-700 font-medium">月底剩余</span>
+                    <span className="font-semibold text-emerald-600">
+                      {totalEndRemaining} 节
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">月底剩余</span>
-                    <span className="font-medium text-emerald-600">
-                      {totalRemainingLessons} 节
+                    <span className="text-gray-500">本月签到</span>
+                    <span className="font-medium text-gray-800">
+                      {totalCheckins} 次
                     </span>
                   </div>
                 </div>
@@ -185,6 +199,12 @@ export default function ExportPage() {
                       班级
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      月初余额
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                      当月续费
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
                       本月已上
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
@@ -207,7 +227,7 @@ export default function ExportPage() {
                 <tbody className="divide-y divide-gray-100">
                   {exportData.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center">
+                      <td colSpan={10} className="px-4 py-12 text-center">
                         <p className="text-gray-400">暂无数据</p>
                       </td>
                     </tr>
@@ -230,18 +250,24 @@ export default function ExportPage() {
                         <td className="px-4 py-3 text-gray-600 text-sm">
                           {className}
                         </td>
+                        <td className="px-4 py-3 text-center text-gray-700">
+                          {stats.startRemaining}
+                        </td>
+                        <td className="px-4 py-3 text-center text-blue-600 font-medium">
+                          +{stats.renewAdded}
+                        </td>
                         <td className="px-4 py-3 text-center text-rose-600 font-medium">
-                          {stats.usedLessons}
+                          -{stats.usedLessons}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span
                             className={`font-medium ${
-                              stats.remainingLessons <= 2
+                              stats.endRemaining <= 2
                                 ? 'text-rose-600'
                                 : 'text-emerald-600'
                             }`}
                           >
-                            {stats.remainingLessons}
+                            {stats.endRemaining}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center text-gray-700">

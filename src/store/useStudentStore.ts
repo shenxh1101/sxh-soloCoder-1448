@@ -20,9 +20,13 @@ interface StudentState {
   getStudentsByClass: (classId: string) => Student[];
   getActiveStudents: () => Student[];
   getMonthlyStats: (studentId: string, month: string) => {
-    totalLessons: number;
+    studentId: string;
+    month: string;
+    startRemaining: number;
+    renewAdded: number;
     usedLessons: number;
-    remainingLessons: number;
+    endRemaining: number;
+    totalLessons: number;
     checkinCount: number;
     leaveCount: number;
     makeupCount: number;
@@ -332,9 +336,13 @@ export const useStudentStore = create<StudentState>()(
         const student = get().students.find((s) => s.id === studentId);
         if (!student) {
           return {
-            totalLessons: 0,
+            studentId,
+            month,
+            startRemaining: 0,
+            renewAdded: 0,
             usedLessons: 0,
-            remainingLessons: 0,
+            endRemaining: 0,
+            totalLessons: 0,
             checkinCount: 0,
             leaveCount: 0,
             makeupCount: 0,
@@ -342,7 +350,7 @@ export const useStudentStore = create<StudentState>()(
         }
 
         const { checkins } = useCheckinStore.getState();
-        const enrollRecords = useEnrollmentStore.getState().records.filter(
+        const allEnrollRecords = useEnrollmentStore.getState().records.filter(
           (r) => r.studentId === studentId
         );
 
@@ -363,36 +371,131 @@ export const useStudentStore = create<StudentState>()(
         ).length;
         const leaveCount = monthCheckins.filter((c) => c.type === 'leave').length;
         const makeupCount = monthCheckins.filter((c) => c.type === 'makeup').length;
+        const usedLessons = checkinCount;
 
-        const beforeMonthRecords = enrollRecords.filter((r) => r.date < monthStart);
-        let totalAtMonthStart = 0;
-        let remainingAtMonthStart = 0;
-
-        if (beforeMonthRecords.length > 0) {
-          const lastRecord = beforeMonthRecords.sort((a, b) => b.date.localeCompare(a.date))[0];
-          totalAtMonthStart = lastRecord.totalLessonsAfter;
-          remainingAtMonthStart = lastRecord.remainingLessonsAfter;
-        }
-
-        const monthEnrollRecords = enrollRecords.filter(
+        const monthEnrollRecords = allEnrollRecords.filter(
           (r) => r.date >= monthStart && r.date <= monthEnd
         );
+        const renewAdded = monthEnrollRecords.reduce(
+          (sum, r) => sum + r.addedLessons + r.giftedLessons,
+          0
+        );
 
-        let totalLessons = totalAtMonthStart;
-        let remainingLessons = remainingAtMonthStart;
+        let startRemaining = 0;
+        let totalLessons = 0;
 
-        monthEnrollRecords.forEach((r) => {
-          totalLessons += r.addedLessons + r.giftedLessons;
-          remainingLessons += r.addedLessons + r.giftedLessons;
-        });
+        if (allEnrollRecords.length > 0) {
+          let remaining = 0;
+          let total = 0;
+          let currentMonth = '';
 
-        const usedLessons = checkinCount;
-        const remainingAtMonthEnd = remainingLessons - usedLessons;
+          const sortedEnrollRecords = [...allEnrollRecords].sort(
+            (a, b) => a.date.localeCompare(b.date)
+          );
+
+          const firstEnrollDate = sortedEnrollRecords[0].date;
+          const firstEnrollMonth = firstEnrollDate.slice(0, 7);
+
+          const [startYear, startMonth] = firstEnrollMonth.split('-').map(Number);
+          const [targetYear, targetMonth] = month.split('-').map(Number);
+
+          for (
+            let y = startYear, m = startMonth;
+            y < targetYear || (y === targetYear && m <= targetMonth);
+            m === 12 ? (y++, (m = 1)) : m++
+          ) {
+            const iterMonth = `${y}-${String(m).padStart(2, '0')}`;
+            const iterMonthStart = `${iterMonth}-01`;
+            const iterLastDay = new Date(y, m, 0).getDate();
+            const iterMonthEnd = `${iterMonth}-${iterLastDay}`;
+
+            const monthEnroll = sortedEnrollRecords.filter(
+              (r) => r.date >= iterMonthStart && r.date <= iterMonthEnd
+            );
+            monthEnroll.forEach((r) => {
+              total = r.totalLessonsAfter;
+              remaining = r.remainingLessonsAfter;
+            });
+
+            const monthCheck = checkins.filter(
+              (c) =>
+                c.studentId === studentId &&
+                c.date >= iterMonthStart &&
+                c.date <= iterMonthEnd &&
+                (c.type === 'normal' || c.type === 'makeup')
+            ).length;
+
+            remaining -= monthCheck;
+
+            currentMonth = iterMonth;
+
+            if (iterMonth === month) {
+              const iterMonthCheckins = checkins.filter(
+                (c) =>
+                  c.studentId === studentId &&
+                  c.date >= iterMonthStart &&
+                  c.date <= iterMonthEnd
+              );
+              const iterCheckinCount = iterMonthCheckins.filter(
+                (c) => c.type === 'normal' || c.type === 'makeup'
+              ).length;
+              const iterLeaveCount = iterMonthCheckins.filter(
+                (c) => c.type === 'leave'
+              ).length;
+              const iterMakeupCount = iterMonthCheckins.filter(
+                (c) => c.type === 'makeup'
+              ).length;
+
+              const prevMonthEnd = new Date(y, m - 1, 0);
+              const prevMonthEndStr = `${prevMonthEnd.getFullYear()}-${String(prevMonthEnd.getMonth() + 1).padStart(2, '0')}-${prevMonthEnd.getDate()}`;
+
+              let startRem = 0;
+              let startTotal = 0;
+              const beforeMonth = sortedEnrollRecords.filter((r) => r.date < iterMonthStart);
+              if (beforeMonth.length > 0) {
+                const lastBefore = beforeMonth.sort((a, b) => b.date.localeCompare(a.date))[0];
+                startTotal = lastBefore.totalLessonsAfter;
+                startRem = lastBefore.remainingLessonsAfter;
+
+                const checkinsBetween = checkins.filter(
+                  (c) =>
+                    c.studentId === studentId &&
+                    c.date > lastBefore.date &&
+                    c.date < iterMonthStart &&
+                    (c.type === 'normal' || c.type === 'makeup')
+                ).length;
+                startRem -= checkinsBetween;
+              }
+
+              const iterRenewAdded = monthEnroll.reduce(
+                (sum, r) => sum + r.addedLessons + r.giftedLessons,
+                0
+              );
+
+              return {
+                studentId,
+                month,
+                startRemaining: Math.max(0, startRem),
+                renewAdded: iterRenewAdded,
+                usedLessons: iterCheckinCount,
+                endRemaining: Math.max(0, startRem + iterRenewAdded - iterCheckinCount),
+                totalLessons: startTotal + iterRenewAdded,
+                checkinCount: iterCheckinCount,
+                leaveCount: iterLeaveCount,
+                makeupCount: iterMakeupCount,
+              };
+            }
+          }
+        }
 
         return {
-          totalLessons,
+          studentId,
+          month,
+          startRemaining: 0,
+          renewAdded,
           usedLessons,
-          remainingLessons: Math.max(0, remainingAtMonthEnd),
+          endRemaining: Math.max(0, renewAdded - usedLessons),
+          totalLessons: renewAdded,
           checkinCount,
           leaveCount,
           makeupCount,

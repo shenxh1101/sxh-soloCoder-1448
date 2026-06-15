@@ -22,6 +22,8 @@ interface ScheduleState {
   getSchedulesByClass: (classId: string) => ClassSchedule[];
   getClassDaysInRange: (classId: string, startDate: string, endDate: string) => string[];
   getClassDayCount: (classId: string, startDate: string, endDate: string) => number;
+  getClassScheduledCount: (classId: string, startDate: string, endDate: string) => number;
+  getSchedulesInRange: (classId: string, startDate: string, endDate: string) => { date: string; schedule: ClassSchedule }[];
   isClassDay: (classId: string, dateStr: string) => boolean;
 }
 
@@ -81,6 +83,37 @@ export const useScheduleStore = create<ScheduleState>()(
 
       getClassDayCount: (classId, startDate, endDate) => {
         return get().getClassDaysInRange(classId, startDate, endDate).length;
+      },
+
+      getSchedulesInRange: (classId, startDate, endDate) => {
+        const schedules = get().schedules.filter((s) => s.classId === classId);
+        if (schedules.length === 0) return [];
+
+        const results: { date: string; schedule: ClassSchedule }[] = [];
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+
+        const current = new Date(start);
+        while (current <= end) {
+          const dayOfWeek = current.getDay();
+          const daySchedules = schedules.filter((s) => s.dayOfWeek === dayOfWeek);
+          const dateStr = formatDate(current);
+
+          daySchedules.forEach((schedule) => {
+            results.push({ date: dateStr, schedule });
+          });
+
+          current.setDate(current.getDate() + 1);
+        }
+
+        return results.sort((a, b) =>
+          a.date.localeCompare(b.date) ||
+          a.schedule.startTime.localeCompare(b.schedule.startTime)
+        );
+      },
+
+      getClassScheduledCount: (classId, startDate, endDate) => {
+        return get().getSchedulesInRange(classId, startDate, endDate).length;
       },
 
       isClassDay: (classId, dateStr) => {

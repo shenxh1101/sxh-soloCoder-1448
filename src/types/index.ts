@@ -71,9 +71,11 @@ export interface StudentWithReminder extends Student {
 export interface MonthlyStats {
   studentId: string;
   month: string;
-  totalLessons: number;
+  startRemaining: number;
+  renewAdded: number;
   usedLessons: number;
-  remainingLessons: number;
+  endRemaining: number;
+  totalLessons: number;
   checkinCount: number;
   leaveCount: number;
   makeupCount: number;

@@ -29,7 +29,7 @@ export default function Statistics() {
   const { classes } = useClassStore();
   const { getStudentsByClass, getActiveStudents } = useStudentStore();
   const { checkins } = useCheckinStore();
-  const { getClassDayCount } = useScheduleStore();
+  const { getClassScheduledCount, getClassDayCount } = useScheduleStore();
 
   const today = getToday();
   const thirtyDaysAgo = useMemo(() => {
@@ -57,8 +57,9 @@ export default function Statistics() {
           c.type === 'leave'
       ).length;
 
+      const scheduledCount = getClassScheduledCount(cls.id, thirtyDaysAgo, today);
       const classDays = getClassDayCount(cls.id, thirtyDaysAgo, today);
-      const expectedAttendance = students.length * classDays;
+      const expectedAttendance = students.length * scheduledCount;
       const actualAttendance = classCheckins.length;
 
       const attendanceRate =
@@ -73,10 +74,11 @@ export default function Statistics() {
         checkins: actualAttendance,
         leaves: leaveCount,
         classDays,
+        scheduledCount,
         attendanceRate,
       };
     });
-  }, [classes, checkins, getStudentsByClass, thirtyDaysAgo, today, getClassDayCount]);
+  }, [classes, checkins, getStudentsByClass, thirtyDaysAgo, today, getClassScheduledCount, getClassDayCount]);
 
   const dailyData = useMemo(() => {
     const data = [];
@@ -110,7 +112,7 @@ export default function Statistics() {
 
   const overallRate = useMemo(() => {
     const totalExpected = attendanceData.reduce(
-      (sum, d) => sum + d.students * d.classDays,
+      (sum, d) => sum + d.students * d.scheduledCount,
       0
     );
     const totalActual = attendanceData.reduce((sum, d) => sum + d.checkins, 0);
@@ -222,17 +224,8 @@ export default function Statistics() {
                   dataKey="attendanceRate"
                   name="出勤率"
                   radius={[8, 8, 0, 0]}
-                >
-                  {attendanceData.map((entry, index) => (
-                    <rect
-                      key={index}
-                      fill={entry.color}
-                      style={{
-                        cursor: 'pointer',
-                      }}
-                    />
-                  ))}
-                </Bar>
+                  fill="#be185d"
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -297,7 +290,10 @@ export default function Statistics() {
                   学员数
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                  应上课天数
+                  应上课次数
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  上课天数
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   签到次数
@@ -326,6 +322,7 @@ export default function Statistics() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-gray-700">{data.students} 人</td>
+                  <td className="px-6 py-4 text-gray-700">{data.scheduledCount} 次</td>
                   <td className="px-6 py-4 text-gray-700">{data.classDays} 天</td>
                   <td className="px-6 py-4 text-gray-700">{data.checkins} 次</td>
                   <td className="px-6 py-4 text-gray-700">{data.leaves} 次</td>
